@@ -7,10 +7,13 @@ router.use(requireAuth);
 
 router.get('/', (req, res) => {
   const db = req.app.get('db');
-  const rows = db
-    .prepare('SELECT * FROM expenses WHERE userId = ? ORDER BY datetime(createdAt) DESC')
-    .all(req.userId);
-  res.json(rows);
+  db.all('SELECT * FROM expenses WHERE userId = ? ORDER BY datetime(createdAt) DESC', 
+    [req.userId], (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Server error' });
+      }
+      res.json(rows);
+    });
 });
 
 router.post('/', (req, res) => {
@@ -19,45 +22,80 @@ router.post('/', (req, res) => {
   if (!title || !category || typeof amount !== 'number') {
     return res.status(400).json({ error: 'Invalid fields' });
   }
-  const info = db
-    .prepare('INSERT INTO expenses (userId, title, category, amount) VALUES (?, ?, ?, ?)')
-    .run(req.userId, title, category, amount);
-  const created = db.prepare('SELECT * FROM expenses WHERE id = ?').get(info.lastInsertRowid);
-  res.status(201).json(created);
+  
+  db.run('INSERT INTO expenses (userId, title, category, amount) VALUES (?, ?, ?, ?)', 
+    [req.userId, title, category, amount], function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Server error' });
+      }
+      
+      db.get('SELECT * FROM expenses WHERE id = ?', [this.lastID], (err, created) => {
+        if (err) {
+          return res.status(500).json({ error: 'Server error' });
+        }
+        res.status(201).json(created);
+      });
+    });
 });
 
 router.put('/:id', (req, res) => {
   const db = req.app.get('db');
   const { id } = req.params;
   const { title, category, amount } = req.body;
-  const current = db
-    .prepare('SELECT * FROM expenses WHERE id = ? AND userId = ?')
-    .get(id, req.userId);
-  if (!current) return res.status(404).json({ error: 'Not found' });
-  db.prepare('UPDATE expenses SET title = ?, category = ?, amount = ? WHERE id = ?')
-    .run(title ?? current.title, category ?? current.category, amount ?? current.amount, id);
-  const updated = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
-  res.json(updated);
+  
+  db.get('SELECT * FROM expenses WHERE id = ? AND userId = ?', [id, req.userId], (err, current) => {
+    if (err) {
+      return res.status(500).json({ error: 'Server error' });
+    }
+    if (!current) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    
+    const newTitle = title ?? current.title;
+    const newCategory = category ?? current.category;
+    const newAmount = amount ?? current.amount;
+    
+    db.run('UPDATE expenses SET title = ?, category = ?, amount = ? WHERE id = ?', 
+      [newTitle, newCategory, newAmount, id], function(err) {
+        if (err) {
+          return res.status(500).json({ error: 'Server error' });
+        }
+        
+        db.get('SELECT * FROM expenses WHERE id = ?', [id], (err, updated) => {
+          if (err) {
+            return res.status(500).json({ error: 'Server error' });
+          }
+          res.json(updated);
+        });
+      });
+  });
 });
 
 router.delete('/:id', (req, res) => {
   const db = req.app.get('db');
   const { id } = req.params;
-  const info = db
-    .prepare('DELETE FROM expenses WHERE id = ? AND userId = ?')
-    .run(id, req.userId);
-  if (info.changes === 0) return res.status(404).json({ error: 'Not found' });
-  res.status(204).end();
+  
+  db.run('DELETE FROM expenses WHERE id = ? AND userId = ?', [id, req.userId], function(err) {
+    if (err) {
+      return res.status(500).json({ error: 'Server error' });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    res.status(204).end();
+  });
 });
 
 router.get('/summary/by-category', (req, res) => {
   const db = req.app.get('db');
-  const rows = db
-    .prepare(
-      'SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE userId = ? GROUP BY category ORDER BY total DESC'
-    )
-    .all(req.userId);
-  res.json(rows);
+  db.all(
+    'SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE userId = ? GROUP BY category ORDER BY total DESC',
+    [req.userId], (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Server error' });
+      }
+      res.json(rows);
+    });
 });
 
 export default router;

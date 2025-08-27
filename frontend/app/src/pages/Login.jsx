@@ -24,7 +24,7 @@ export default function Login() {
   return (
     <div className={styles.card}>
       <div className={styles.body}>
-        <h1 className={styles.title}>Welcome, admin!</h1>
+        <h1 className={styles.title}>Welcome back!</h1>
         <p className={styles.sub}>Login to continue</p>
         {error && <div className={styles.error}>{error}</div>}
         <form onSubmit={onSubmit} className={styles.form}>

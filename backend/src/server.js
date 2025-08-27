@@ -21,19 +21,30 @@ const dbFileFromEnv = process.env.DB_FILE;
 const dbPath = dbFileFromEnv && dbFileFromEnv.trim().length > 0
   ? dbFileFromEnv
   : path.join(__dirname, '..', 'data', 'app.db');
-const db = createDatabase(dbPath);
-app.set('db', db);
 
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true });
-});
+// Initialize database and start server
+async function startServer() {
+  try {
+    const db = await createDatabase(dbPath);
+    app.set('db', db);
 
-app.use('/api/auth', authRouter);
-app.use('/api/expenses', expensesRouter);
+    app.get('/api/health', (req, res) => {
+      res.json({ ok: true });
+    });
 
-const port = process.env.PORT || 4000;
-app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
-});
+    app.use('/api/auth', authRouter);
+    app.use('/api/expenses', expensesRouter);
+
+    const port = process.env.PORT || 4000;
+    app.listen(port, () => {
+      console.log(`API listening on http://localhost:${port}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 

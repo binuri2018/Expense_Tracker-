@@ -12,36 +12,53 @@ router.post('/register', (req, res) => {
   if (!username || !email || !password) {
     return res.status(400).json({ error: 'Missing fields' });
   }
-  try {
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existing) return res.status(409).json({ error: 'Email already registered' });
+  
+  // Check if user already exists
+  db.get('SELECT id FROM users WHERE email = ?', [email], (err, existing) => {
+    if (err) {
+      return res.status(500).json({ error: 'Server error' });
+    }
+    if (existing) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+    
+    // Hash password and insert user
     const passwordHash = bcrypt.hashSync(password, 10);
-    const info = db
-      .prepare('INSERT INTO users (username, email, passwordHash) VALUES (?, ?, ?)')
-      .run(username, email, passwordHash);
-    const user = { id: info.lastInsertRowid, username, email };
-    const token = jwt.sign({ sub: user.id }, jwtSecret, { expiresIn: '7d' });
-    res.json({ user, token });
-  } catch (e) {
-    res.status(500).json({ error: 'Server error' });
-  }
+    db.run('INSERT INTO users (username, email, passwordHash) VALUES (?, ?, ?)', 
+      [username, email, passwordHash], function(err) {
+        if (err) {
+          return res.status(500).json({ error: 'Server error' });
+        }
+        
+        const user = { id: this.lastID, username, email };
+        const token = jwt.sign({ sub: user.id }, jwtSecret, { expiresIn: '7d' });
+        res.json({ user, token });
+      });
+  });
 });
 
 router.post('/login', (req, res) => {
   const db = req.app.get('db');
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
-  try {
-    const userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    if (!userRow) return res.status(401).json({ error: 'Invalid credentials' });
+  
+  db.get('SELECT * FROM users WHERE email = ?', [email], (err, userRow) => {
+    if (err) {
+      return res.status(500).json({ error: 'Server error' });
+    }
+    if (!userRow) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
     const ok = bcrypt.compareSync(password, userRow.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!ok) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
     const user = { id: userRow.id, username: userRow.username, email: userRow.email };
     const token = jwt.sign({ sub: user.id }, jwtSecret, { expiresIn: '7d' });
     res.json({ user, token });
-  } catch (e) {
-    res.status(500).json({ error: 'Server error' });
-  }
+  });
 });
 
 export function requireAuth(req, res, next) {

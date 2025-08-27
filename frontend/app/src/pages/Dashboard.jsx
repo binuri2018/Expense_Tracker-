@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../api/client.js';
+import { useAuth } from '../context/AuthProvider.jsx';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, XAxis, YAxis, Bar, Tooltip } from 'recharts';
 import styles from './Dashboard.module.css';
 
@@ -11,6 +12,7 @@ const CATEGORY_COLORS = {
 };
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ title: '', category: '', amount: '' });
 
@@ -50,7 +52,7 @@ export default function Dashboard() {
   return (
     <div className={styles.grid}>
       <div>
-        <h1 className={styles.heading}>Welcome back, admin! 👋</h1>
+        <h1 className={styles.heading}>Welcome back, {user?.username}! 👋</h1>
         <p className={styles.muted}>Track and manage your expenses with ease</p>
       </div>
 
