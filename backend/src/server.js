@@ -17,7 +17,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const db = createDatabase(path.join(__dirname, '..', 'data', 'app.db'));
+const dbFileFromEnv = process.env.DB_FILE;
+const dbPath = dbFileFromEnv && dbFileFromEnv.trim().length > 0
+  ? dbFileFromEnv
+  : path.join(__dirname, '..', 'data', 'app.db');
+const db = createDatabase(dbPath);
 app.set('db', db);
 
 app.get('/api/health', (req, res) => {
